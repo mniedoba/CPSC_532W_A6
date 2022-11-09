@@ -19,8 +19,8 @@ homework5_programs: []
 homework6_programs: [1, 2, 3]
 
 # Inference method
-inference: None
-#inference: IS
+#inference: None
+inference: IS
 #inference: SMC
 
 # Compilation

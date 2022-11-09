@@ -112,8 +112,6 @@ def eval(e, sig:dict, env:Env, verbose=False):
             new_alpha = eval(addr_expr, sig, env)
             dist = eval(dist_expr, sig, env)
             obs = eval(obs_expr, sig, env)
-            if 'logW' not in sig:
-                sig['logW'] = 0.
             sig['logW'] += dist.log_prob(obs)
             return eval(cont, sig, env), [obs], sig
         case ExpressionType.FUNCTION:
@@ -131,6 +129,7 @@ def evaluate(ast:dict, sig=None, run_name='start', verbose=False):
     '''
     if sig is None:
         sig = {}
+    sig['logW'] = 0.
     env = standard_env()
     output = lambda x: x # Identity function, so that output value is identical to output
     exp = eval(ast, sig, env, verbose)(run_name, output) # NOTE: Must run as function with a continuation

@@ -41,8 +41,15 @@ def get_importance_samples(ast:dict, num_samples:int, tmax=None, wandb_name=None
     '''
     Generate a set of importamnce samples from a HOPPL program
     '''
-    # NOTE: Fill this in
-    return None
+    samples, log_weights = [], []
+    if tmax is not None:
+        max_time = time() + tmax
+    for i in trange(num_samples):
+        sample, sig = evaluate(ast, verbose=verbose)
+        samples.append(sample)
+        log_weights.append(sig['logW'])
+    samples = resample_using_importance_weights(samples, log_weights)
+    return samples
 
 
 def get_SMC_samples(ast:dict, num_samples:int, run_name='start', wandb_name=None, verbose=False):
