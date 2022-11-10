@@ -84,7 +84,6 @@ def run_programs(programs, prog_set, base_dir, daphne_dir, num_samples=int(1e3),
         print('Maximum time [s]:', tmax)
         ast = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode='desugar-hoppl-cps', compile=compile)
         samples = get_samples(ast, num_samples, tmax=tmax, inference=inference, wandb_name=wandb_name, verbose=verbose)
-        print(samples)
         samples = tc.stack(samples).type(tc.float)
         np.savetxt(results_file(i), samples)
 

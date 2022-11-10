@@ -107,6 +107,9 @@ def remove(vec, index):
 def empty(obj):
     return len(obj) == 0
 
+def mat_transpose(mat):
+    return mat.T
+
 FOPPL_PRIMITIVES = {
 
     # Comparisons
@@ -131,7 +134,7 @@ FOPPL_PRIMITIVES = {
     'append': append,
     'remove': remove,
     'empty?': empty,
-    'mat-transpose': lambda mat: mat.T,
+    'mat-transpose': mat_transpose,
     'mat-repmat': repmat,
     'mat-add': torch.add,
     'mat-tanh': torch.tanh,
@@ -177,7 +180,21 @@ primitives = {
     'push-address' : push_address,
 }
 
+class CPSFunction(object):
+
+    def __init__(self, fnc):
+        self.fnc = fnc
+
+    def __call__(self, *args):
+        continuation = args[-1]
+        r_val = self.fnc(*args[1:-1])
+        return continuation(r_val)
+
 HOPPL_PRIMITIVES = {
-    k: lambda *x, fnc=v: x[-1](fnc(*x[1:-1])) for k,v in FOPPL_PRIMITIVES.items()
+    k: CPSFunction(v) for k,v in FOPPL_PRIMITIVES.items()
 }
+
+# HOPPL_PRIMITIVES = {
+#     k: lambda *x, fnc=v: x[-1](fnc(*x[1:-1])) for k,v in FOPPL_PRIMITIVES.items()
+# }
 primitives.update(HOPPL_PRIMITIVES)

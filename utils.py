@@ -3,7 +3,7 @@ import numpy as np
 import torch as tc
 import wandb
 
-def calculate_effective_sample_size(weights:tc.Tensor, verbose=False):
+def calculate_effective_sample_size(weights:tc.Tensor, verbose=True):
     '''
     Calculate the effective sample size via the importance weights
     '''

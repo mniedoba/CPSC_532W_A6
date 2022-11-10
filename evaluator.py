@@ -47,7 +47,7 @@ class Env(dict):
         if var in self:
             result = self[var]
         elif var[:4] == 'addr':
-            return var + "_" + str(uuid4())
+            return var
         else:
             if self.outer is None:
                 raise ValueError(f'Outer limit of environment reached, {var} not found.')
@@ -58,9 +58,15 @@ class Env(dict):
 class Procedure(object):
     'A user-defined HOPPL procedure'
     def __init__(self, params:list, body:list, sig:dict, env:Env):
-        self.params, self.body, self.sig, self.env = params, body, sig, env
+        self.params = params
+        self.body = body
+        self.sig = sig
+        self.env = env
     def __call__(self, *args):
         return eval(self.body, self.sig, Env(self.params, args, self.env))
+
+    def reset_weight(self):
+        self.sig['logW'] = 0.
 
 
 def standard_env():
@@ -103,17 +109,19 @@ def eval(e, sig:dict, env:Env, verbose=False):
         case ExpressionType.SAMPLE:
             _, addr_expr, dist_expr, cont = e
             new_alpha = eval(addr_expr, sig, env)
+            sig['address'] = new_alpha
             # env = Env(['alpha'], [new_alpha], outer=env)
             dist = eval(dist_expr, sig, env)
             sample = dist.sample()
-            return eval(cont, sig, env), [sample], sig
+            return eval(cont, sig, env), [sample], sig, False
         case ExpressionType.OBSERVE:
             _, addr_expr, dist_expr, obs_expr, cont = e
             new_alpha = eval(addr_expr, sig, env)
+            sig['address'] = new_alpha
             dist = eval(dist_expr, sig, env)
             obs = eval(obs_expr, sig, env)
             sig['logW'] += dist.log_prob(obs)
-            return eval(cont, sig, env), [obs], sig
+            return eval(cont, sig, env), [obs], sig, True
         case ExpressionType.FUNCTION:
             _, params, body = e
             return Procedure(params, body, sig, env)
@@ -134,6 +142,6 @@ def evaluate(ast:dict, sig=None, run_name='start', verbose=False):
     output = lambda x: x # Identity function, so that output value is identical to output
     exp = eval(ast, sig, env, verbose)(run_name, output) # NOTE: Must run as function with a continuation
     while type(exp) is tuple: # If there are continuations the exp will be a tuple and a re-evaluation needs to occur
-        func, args, sig = exp
+        func, args, sig, is_obs = exp
         exp = func(*args)
     return exp, sig
