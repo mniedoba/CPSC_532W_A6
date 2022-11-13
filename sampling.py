@@ -3,7 +3,7 @@ import copy
 import math
 from multiprocessing import Pool
 from time import time
-from tqdm import trange
+from tqdm import trange, tqdm
 import torch
 import numpy as np
 import sys
@@ -59,8 +59,7 @@ def get_importance_samples(ast:dict, num_samples:int, tmax=1E6, wandb_name=None,
     samples = resample_using_importance_weights(samples, log_weights)
     return samples
 
-def run_forward(f, seed, a):
-    torch.manual_seed(seed)
+def run_forward(f, a):
     done = False
     fnc = f
     args = a
@@ -98,27 +97,36 @@ def get_SMC_samples(ast:dict, num_samples:int, tmax=None, run_name='start', wand
     '''
     Generate a set of samples via Sequential Monte Carlo from a HOPPL program
     '''
-    sq = np.random.SeedSequence(num_samples)
-    with Pool() as p:
-        sq = np.random.SeedSequence()
-        seeds = sq.generate_state(num_samples)
-        arguments = [(eval(ast, {'logW': 0.}, standard_env(), verbose), seeds[i], ("foo", return_fnc)) for i in range(num_samples)]
-        particles = p.starmap(run_forward, arguments)
-        log_weights = torch.tensor([0 for particle in particles]) # No observes, uniform weights.
-        obs_number = 0
-        while type(particles[0]) is tuple:
-            print("Observation ", obs_number)
-            obs_number += 1
-            log_weights = torch.tensor([particle[2]['logW'] for particle in particles])
-            ESS = calculate_effective_sample_size(torch.exp(log_weights).type(torch.float64))
-            if ESS < num_samples / 2.:
-                print(f'Resampling.')
-                particles = resample_using_importance_weights(particles, log_weights)
-                particles = [copy.deepcopy(particle) for particle in particles]
-                for particle in particles:
-                    particle[0].reset_weight()
-            arguments = [(particle[0], seeds[i], particle[1]) for i, particle in enumerate(particles)]
-            particles = p.starmap(run_forward, arguments)
+    start_fnc = eval(ast, {'logW': 0.}, standard_env(), verbose)
+    args = ("start", return_fnc)
+    particles = []
+    for i in trange(num_samples, leave=False):
+        start_fnc.sig = {'logW': 0.}
+        particles.append(run_forward(start_fnc, args))
+    obs_number = 0
+    total_log_evidence = torch.zeros(1)
+    log_weights = torch.zeros(num_samples)
+    while type(particles[0]) is tuple:
+        obs_number += 1
+        log_weights = torch.tensor([particle[2]['logW'] for particle in particles])
+        weights = torch.exp(log_weights)
+        avg_weight = weights.mean()
+        log_evidence = torch.log(avg_weight)
+        total_log_evidence += log_evidence
+        ESS = calculate_effective_sample_size(torch.exp(log_weights).type(torch.float64))
+        print(f"Observation {obs_number}. Observation log evidence: {log_evidence}, ESS: {ESS}")
+        if ESS < num_samples / 2.:
+            print(f'Resampling.')
+            particles = resample_using_importance_weights(particles, log_weights)
+            for i in range(num_samples):
+                particles[i] = copy.deepcopy(particles[i])
+                particles[i][0].sig['logW'] = 0.
+                # Maybe deepcopy?
+        for i, particle in enumerate(tqdm(particles, leave=False)):
+            fnc, args = particle[:2]
+            particles[i] = run_forward(fnc, args)
+
+    print(f"Program complete. Total Log Evidence: {total_log_evidence}.")
     samples = particles
     return resample_using_importance_weights(samples, log_weights)
 
